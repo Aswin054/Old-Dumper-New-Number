@@ -27,37 +27,47 @@ from torchvision.models import ResNet50_Weights
 from ultralytics import YOLO
 import pytesseract
 
-# ✅ Define Model Paths (Fix Deployment Issue)
-MODEL_DIR = os.path.join(os.path.dirname(__file__), "models")
+# ✅ Define Paths (Fix Deployment Issue)
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))  # Go one level up
+
+MODEL_DIR = os.path.join(BASE_DIR, "models")
+DATA_DIR = os.path.join(BASE_DIR, "data")  # Store CSV files in a `data/` folder for better organization
 
 truck_model_path = os.path.join(MODEL_DIR, "yolov8n.pt")
 license_plate_model_path = os.path.join(MODEL_DIR, "license_plate_detector.pt")
 number_plate_model_path = os.path.join(MODEL_DIR, "model.pkl")
 
-# ✅ Load YOLO Models
-truck_model = YOLO(truck_model_path)
-license_plate_model = YOLO(license_plate_model_path)
+FEATURES_CSV = os.path.join(DATA_DIR, "features.csv")
+PREDICTIONS_CSV = os.path.join(DATA_DIR, "predictions.csv")
+
+# ✅ Load YOLO Models (Check if files exist)
+if os.path.exists(truck_model_path):
+    truck_model = YOLO(truck_model_path)
+else:
+    st.error("⚠️ `yolov8n.pt` model not found in the `models/` directory!")
+
+if os.path.exists(license_plate_model_path):
+    license_plate_model = YOLO(license_plate_model_path)
+else:
+    st.error("⚠️ `license_plate_detector.pt` model not found in the `models/` directory!")
 
 # ✅ Load Number Plate Classifier (Handle Missing File Safely)
+number_plate_model = None
 if os.path.exists(number_plate_model_path):
     try:
         number_plate_model = joblib.load(number_plate_model_path)
     except Exception as e:
-        st.error(f"⚠️ Error loading model.pkl: {str(e)}")
-        number_plate_model = None
+        st.error(f"⚠️ Error loading `model.pkl`: {str(e)}")
 else:
-    st.error("⚠️ model.pkl not found in the models/ directory!")
-    number_plate_model = None
+    st.error("⚠️ `model.pkl` not found in the `models/` directory!")
 
 # ✅ Load CSV files (Handle Missing Files)
-FEATURES_CSV = os.path.join(os.path.dirname(__file__), "features.csv")
-PREDICTIONS_CSV = os.path.join(os.path.dirname(__file__), "predictions.csv")
-
 try:
     features_df = pd.read_csv(FEATURES_CSV)
     predictions_df = pd.read_csv(PREDICTIONS_CSV)
+    st.success("✅ CSV Files Loaded Successfully!")
 except FileNotFoundError:
-    st.error("⚠️ Missing CSV files: features.csv or predictions.csv not found!")
+    st.error("⚠️ Missing CSV files: `features.csv` or `predictions.csv` not found!")
 
 # ✅ Fix ResNet50 model loading (removes warning)
 resnet_model = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
@@ -75,8 +85,10 @@ def extract_features(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     text = pytesseract.image_to_string(gray, config="--psm 8")
     text_clarity = len(text.strip())
+
     edges = cv2.Canny(gray, 50, 150)
     edge_sharpness = np.sum(edges) / (gray.shape[0] * gray.shape[1])
+
     rust_level = 0  # No rust detection in grayscale images
     return [rust_level, text_clarity, edge_sharpness]
 
@@ -99,7 +111,7 @@ if uploaded_file:
     truck_type = "Old" if torch.argmax(output).item() == 0 else "New"
 
     # ✅ Truck Detection
-    results = truck_model(image_cv)
+    results = truck_model(image_cv) if 'truck_model' in locals() else []
     number_plate_type = "Unknown"
 
     for result in results:
@@ -113,7 +125,7 @@ if uploaded_file:
                 truck_crop = image_cv[y1:y2, x1:x2]
 
                 # ✅ License Plate Detection
-                lp_results = license_plate_model(truck_crop)
+                lp_results = license_plate_model(truck_crop) if 'license_plate_model' in locals() else []
                 if not lp_results:
                     st.warning("⚠️ No license plate detected! Please try another image.")
                     continue
@@ -132,7 +144,7 @@ if uploaded_file:
                         if number_plate_model is not None:
                             features = np.array(extract_features(lp_crop)).reshape(1, -1)
                             if np.isnan(features).any():
-                                st.error("Error in extracted features: NaN values found.")
+                                st.error("⚠️ Error in extracted features: NaN values found.")
                             else:
                                 number_plate_prediction = number_plate_model.predict(features)[0]
                                 number_plate_type = "New" if number_plate_prediction == 1 else "Old"
