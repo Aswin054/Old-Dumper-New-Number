@@ -3,7 +3,6 @@ import asyncio
 import shutil
 import streamlit as st
 import nest_asyncio
-import cv2
 import numpy as np
 import torch
 import joblib
@@ -16,6 +15,12 @@ import pytesseract
 
 # ✅ Disable Streamlit File Watcher to Fix Torch Async Issues
 os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
+
+# ✅ Fix OpenCV Import Issue
+try:
+    import cv2
+except ImportError:
+    st.error("⚠️ OpenCV is not installed! Install it using `pip install opencv-python-headless`.")
 
 # ✅ Fix asyncio error in Python 3.12+
 try:
@@ -33,7 +38,7 @@ else:
     st.error("⚠️ Tesseract-OCR not found! Ensure it's installed and added to system PATH.")
 
 # ✅ Define Paths
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))  
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 MODEL_DIR = os.path.join(BASE_DIR, "models")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
@@ -45,11 +50,18 @@ FEATURES_CSV = os.path.join(DATA_DIR, "features.csv")
 PREDICTIONS_CSV = os.path.join(DATA_DIR, "predictions.csv")
 
 # ✅ Load YOLO Models
+truck_model, license_plate_model = None, None
 try:
-    truck_model = YOLO(truck_model_path)
-    license_plate_model = YOLO(license_plate_model_path)
+    if os.path.exists(truck_model_path):
+        truck_model = YOLO(truck_model_path)
+    else:
+        st.error("⚠️ `yolov8n.pt` model not found!")
+
+    if os.path.exists(license_plate_model_path):
+        license_plate_model = YOLO(license_plate_model_path)
+    else:
+        st.error("⚠️ `license_plate_detector.pt` model not found!")
 except Exception as e:
-    truck_model, license_plate_model = None, None
     st.error(f"⚠️ Error loading YOLO models: {str(e)}")
 
 # ✅ Load Number Plate Classifier Safely
@@ -66,8 +78,10 @@ else:
 # ✅ Load CSV Files Safely
 features_df, predictions_df = None, None
 try:
-    features_df = pd.read_csv(FEATURES_CSV)
-    predictions_df = pd.read_csv(PREDICTIONS_CSV)
+    if os.path.exists(FEATURES_CSV):
+        features_df = pd.read_csv(FEATURES_CSV)
+    if os.path.exists(PREDICTIONS_CSV):
+        predictions_df = pd.read_csv(PREDICTIONS_CSV)
     st.success("✅ CSV Files Loaded Successfully!")
 except FileNotFoundError:
     st.warning("⚠️ Missing `features.csv` or `predictions.csv`!")
@@ -118,12 +132,11 @@ if uploaded_file:
     truck_type = "Old" if torch.argmax(output).item() == 0 else "New"
 
     # ✅ Truck Detection
+    number_plate_type = "Unknown"
     if truck_model:
-        results = truck_model(image_cv)  
-        number_plate_type = "Unknown"
-
+        results = truck_model(image_cv)
         for result in results:
-            detected_classes = set([int(cls) for cls in result.boxes.cls.cpu().numpy()])
+            detected_classes = set(result.boxes.cls.cpu().numpy().astype(int))
             for box, cls in zip(result.boxes.xyxy.cpu().numpy(), detected_classes):
                 if cls == 7:  # Truck Class ID
                     x1, y1, x2, y2 = map(int, box[:4])
@@ -151,8 +164,6 @@ if uploaded_file:
                                         number_plate_type = "New" if number_plate_prediction == 1 else "Old"
                                     else:
                                         st.error("⚠️ Extracted features contain NaN values!")
-                                else:
-                                    st.error("⚠️ Number plate classifier missing!")
 
     # ✅ Display Results
     st.subheader("Results:")
