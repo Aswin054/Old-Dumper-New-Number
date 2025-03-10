@@ -9,3 +9,4 @@ pytesseract
 scikit-learn
 joblib
 nest_asyncio
+opencv-python-headless==4.10.0.84
