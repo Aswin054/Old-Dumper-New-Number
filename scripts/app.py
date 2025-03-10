@@ -10,19 +10,24 @@ import pandas as pd
 from PIL import Image
 from torchvision import models, transforms
 from torchvision.models import ResNet50_Weights
-from ultralytics import YOLO
 import pytesseract
-
-# ✅ Disable Streamlit File Watcher to Fix Torch Async Issues
-os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
 
 # ✅ Fix OpenCV Import Issue
 try:
     import cv2
 except ImportError:
-    st.error("⚠️ OpenCV is not installed! Install it using `pip install opencv-python-headless`.")
+    st.error("⚠️ OpenCV import failed! Ensure `opencv-python-headless` is installed.")
 
-# ✅ Fix asyncio error in Python 3.12+
+# ✅ Fix YOLO Import Issue
+try:
+    from ultralytics import YOLO
+except ImportError:
+    st.error("⚠️ Ultralytics YOLO import failed! Try reinstalling with `pip install ultralytics`.")
+
+# ✅ Disable Streamlit File Watcher (Fixes Torch Issues)
+os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
+
+# ✅ Fix asyncio issues in Python 3.12+
 try:
     asyncio.get_running_loop()
 except RuntimeError:
@@ -30,7 +35,7 @@ except RuntimeError:
 
 nest_asyncio.apply()
 
-# ✅ Auto-detect Tesseract path (Works for both Windows & Linux)
+# ✅ Auto-detect Tesseract path
 tesseract_path = shutil.which("tesseract")
 if tesseract_path:
     pytesseract.pytesseract.tesseract_cmd = tesseract_path
@@ -49,22 +54,17 @@ number_plate_model_path = os.path.join(MODEL_DIR, "model.pkl")
 FEATURES_CSV = os.path.join(DATA_DIR, "features.csv")
 PREDICTIONS_CSV = os.path.join(DATA_DIR, "predictions.csv")
 
-# ✅ Load YOLO Models
+# ✅ Load YOLO Models (Handle Errors)
 truck_model, license_plate_model = None, None
 try:
     if os.path.exists(truck_model_path):
         truck_model = YOLO(truck_model_path)
-    else:
-        st.error("⚠️ `yolov8n.pt` model not found!")
-
     if os.path.exists(license_plate_model_path):
         license_plate_model = YOLO(license_plate_model_path)
-    else:
-        st.error("⚠️ `license_plate_detector.pt` model not found!")
 except Exception as e:
     st.error(f"⚠️ Error loading YOLO models: {str(e)}")
 
-# ✅ Load Number Plate Classifier Safely
+# ✅ Load Number Plate Classifier
 number_plate_model = None
 if os.path.exists(number_plate_model_path):
     try:
@@ -75,13 +75,10 @@ if os.path.exists(number_plate_model_path):
 else:
     st.error("⚠️ `model.pkl` not found!")
 
-# ✅ Load CSV Files Safely
-features_df, predictions_df = None, None
+# ✅ Load CSV Files
 try:
-    if os.path.exists(FEATURES_CSV):
-        features_df = pd.read_csv(FEATURES_CSV)
-    if os.path.exists(PREDICTIONS_CSV):
-        predictions_df = pd.read_csv(PREDICTIONS_CSV)
+    features_df = pd.read_csv(FEATURES_CSV)
+    predictions_df = pd.read_csv(PREDICTIONS_CSV)
     st.success("✅ CSV Files Loaded Successfully!")
 except FileNotFoundError:
     st.warning("⚠️ Missing `features.csv` or `predictions.csv`!")
@@ -99,18 +96,15 @@ transform = transforms.Compose([
 
 def extract_features(image):
     """Extract features from the license plate."""
-    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)  # Fix BGR to RGB issue
-
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
     try:
         text = pytesseract.image_to_string(gray, config="--psm 8").strip()
         text_clarity = len(text)
     except pytesseract.pytesseract.TesseractNotFoundError:
         st.error("⚠️ Tesseract-OCR not installed!")
         return [0, 0, 0]
-    
     edges = cv2.Canny(gray, 50, 150)
     edge_sharpness = np.sum(edges) / (gray.shape[0] * gray.shape[1])
-    
     rust_level = 0  # Placeholder for rust detection
     return [rust_level, text_clarity, edge_sharpness]
 
@@ -134,14 +128,13 @@ if uploaded_file:
     # ✅ Truck Detection
     number_plate_type = "Unknown"
     if truck_model:
-        results = truck_model(image_cv)
+        results = truck_model(image_cv)  
         for result in results:
-            detected_classes = set(result.boxes.cls.cpu().numpy().astype(int))
+            detected_classes = set([int(cls) for cls in result.boxes.cls.cpu().numpy()])
             for box, cls in zip(result.boxes.xyxy.cpu().numpy(), detected_classes):
                 if cls == 7:  # Truck Class ID
                     x1, y1, x2, y2 = map(int, box[:4])
                     truck_crop = image_cv[y1:y2, x1:x2]
-
                     if license_plate_model:
                         lp_results = license_plate_model(truck_crop)
                         for lp_result in lp_results:
@@ -153,8 +146,6 @@ if uploaded_file:
                                 lp_y2 += y1
                                 lp_crop = image_cv[lp_y1:lp_y2, lp_x1:lp_x2]
                                 st.image(lp_crop, caption="Detected License Plate")
-
-                                # ✅ Feature Extraction & Classification
                                 if number_plate_model:
                                     features = np.array(extract_features(lp_crop)).reshape(1, -1)
                                     feature_columns = ["Rust_Level", "Text_Clarity", "Edge_Sharpness"]
@@ -169,8 +160,6 @@ if uploaded_file:
     st.subheader("Results:")
     st.write(f"**Truck Type:** {truck_type}")
     st.write(f"**Number Plate Type:** {number_plate_type}")
-
-    # ✅ Fraud Detection
     if truck_type == "Old" and number_plate_type == "New":
         st.error("🚨 OLD DUMPER WITH NEW NUMBER DETECTED 🚨")
     else:
