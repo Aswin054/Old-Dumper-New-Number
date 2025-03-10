@@ -1,12 +1,10 @@
 streamlit
+opencv-python-headless==4.10.0.84
 numpy
-pandas
 torch
 torchvision
 ultralytics
-opencv-python-headless
+pandas
 pytesseract
-scikit-learn
 joblib
-nest_asyncio
-opencv-python-headless==4.10.0.84
+nest-asyncio
