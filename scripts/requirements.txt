@@ -1,0 +1,11 @@
+streamlit
+numpy
+pandas
+torch
+torchvision
+ultralytics
+opencv-python-headless
+pytesseract
+scikit-learn
+joblib
+nest_asyncio
