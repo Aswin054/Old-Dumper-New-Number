@@ -6,8 +6,16 @@ os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
 import asyncio
 import streamlit as st
 import nest_asyncio
+import os
 
-# ✅ Fix asyncio error in Python 3.12+
+# Disable Streamlit File Watcher to Fix Torch Async Issues
+os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
+
+import asyncio
+import streamlit as st
+import nest_asyncio
+
+# Fix asyncio error in Python 3.12+
 try:
     asyncio.get_running_loop()
 except RuntimeError:
@@ -15,7 +23,7 @@ except RuntimeError:
 
 nest_asyncio.apply()
 
-# ✅ Import Libraries
+# Import Libraries
 import cv2
 import numpy as np
 import torch
@@ -27,7 +35,7 @@ from torchvision.models import ResNet50_Weights
 from ultralytics import YOLO
 import pytesseract
 
-# ✅ Define Paths (Fix Deployment Issue)
+# Define Paths (Fix Deployment Issue)
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))  # Go one level up
 
 MODEL_DIR = os.path.join(BASE_DIR, "models")
@@ -40,7 +48,7 @@ number_plate_model_path = os.path.join(MODEL_DIR, "model.pkl")
 FEATURES_CSV = os.path.join(DATA_DIR, "features.csv")
 PREDICTIONS_CSV = os.path.join(DATA_DIR, "predictions.csv")
 
-# ✅ Load YOLO Models (Check if files exist)
+# Load YOLO Models (Check if files exist)
 truck_model = YOLO(truck_model_path) if os.path.exists(truck_model_path) else None
 license_plate_model = YOLO(license_plate_model_path) if os.path.exists(license_plate_model_path) else None
 
@@ -49,7 +57,7 @@ if not truck_model:
 if not license_plate_model:
     st.error("⚠️ `license_plate_detector.pt` model not found in the `models/` directory!")
 
-# ✅ Load Number Plate Classifier (Handle Missing File Safely)
+# Load Number Plate Classifier (Handle Missing File Safely)
 number_plate_model = None
 if os.path.exists(number_plate_model_path):
     try:
@@ -59,7 +67,7 @@ if os.path.exists(number_plate_model_path):
 else:
     st.error("⚠️ `model.pkl` not found in the `models/` directory!")
 
-# ✅ Load CSV files (Handle Missing Files)
+# Load CSV files (Handle Missing Files)
 features_df, predictions_df = None, None
 try:
     features_df = pd.read_csv(FEATURES_CSV)
@@ -68,12 +76,12 @@ try:
 except FileNotFoundError:
     st.error("⚠️ Missing CSV files: `features.csv` or `predictions.csv` not found!")
 
-# ✅ Fix ResNet50 model loading (removes warning)
+# Fix ResNet50 model loading (removes warning)
 resnet_model = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
 resnet_model.fc = torch.nn.Linear(resnet_model.fc.in_features, 2)
 resnet_model.eval()
 
-# ✅ Image Preprocessing for ResNet50
+# Image Preprocessing for ResNet50
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor()
@@ -96,25 +104,25 @@ def extract_features(image):
     rust_level = 0  # No rust detection in grayscale images
     return [rust_level, text_clarity, edge_sharpness]
 
-# ✅ Streamlit UI
+# Streamlit UI
 st.title("🚛 OLD DUMPER WITH NEW NUMBER DETECTOR")
 st.write("Upload an image of a truck to detect its type and check for fraud.")
 
 uploaded_file = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"])
 
 if uploaded_file:
-    # ✅ Read and display the image
+    # Read and display the image
     image = Image.open(uploaded_file)
     image_cv = np.array(image)
     st.image(image, caption="Uploaded Image", use_container_width=True)
 
-    # ✅ Truck Classification
+    # Truck Classification
     img_tensor = transform(image).unsqueeze(0)
     with torch.no_grad():
         output = resnet_model(img_tensor)
     truck_type = "Old" if torch.argmax(output).item() == 0 else "New"
 
-    # ✅ Truck Detection
+    # Truck Detection
     results = truck_model(image_cv) if truck_model else []
     number_plate_type = "Unknown"
 
@@ -128,7 +136,7 @@ if uploaded_file:
                 x1, y1, x2, y2 = map(int, box[:4])
                 truck_crop = image_cv[y1:y2, x1:x2]
 
-                # ✅ License Plate Detection
+                # License Plate Detection
                 lp_results = license_plate_model(truck_crop) if license_plate_model else []
                 if not lp_results:
                     st.warning("⚠️ No license plate detected! Please try another image.")
@@ -144,15 +152,15 @@ if uploaded_file:
                         lp_crop = image_cv[lp_y1:lp_y2, lp_x1:lp_x2]
                         st.image(lp_crop, caption="Detected License Plate", use_container_width=True)
 
-                        # ✅ Extract Features and Classify Number Plate
+                        # Extract Features and Classify Number Plate
                         if number_plate_model:
                             features = np.array(extract_features(lp_crop)).reshape(1, -1)
                             
-                            # ✅ Correct feature names
+                            # Correct feature names
                             feature_columns = ["Rust_Level", "Text_Clarity", "Edge_Sharpness"]
                             features_df = pd.DataFrame(features, columns=feature_columns)
 
-                            # ✅ Debugging Outputs
+                            # Debugging Outputs
                             st.write("📌 Extracted Features for Prediction:", features_df)
                             st.write("📌 Model Expecting Features:", list(number_plate_model.feature_names_in_))
 
@@ -164,12 +172,12 @@ if uploaded_file:
                         else:
                             st.error("⚠️ Number plate classifier model is missing!")
 
-    # ✅ Display Results
+    # Display Results
     st.subheader("Results:")
     st.write(f"**Truck Type:** {truck_type}")
     st.write(f"**Number Plate Type:** {number_plate_type}")
 
-    # ✅ Fraud Detection
+    # Fraud Detection
     if truck_type == "Old" and number_plate_type == "New":
         st.error("🚨 OLD DUMPER WITH NEW NUMBER DETECTED 🚨")
     else:
