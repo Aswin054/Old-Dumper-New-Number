@@ -41,14 +41,12 @@ FEATURES_CSV = os.path.join(DATA_DIR, "features.csv")
 PREDICTIONS_CSV = os.path.join(DATA_DIR, "predictions.csv")
 
 # ✅ Load YOLO Models (Check if files exist)
-if os.path.exists(truck_model_path):
-    truck_model = YOLO(truck_model_path)
-else:
-    st.error("⚠️ `yolov8n.pt` model not found in the `models/` directory!")
+truck_model = YOLO(truck_model_path) if os.path.exists(truck_model_path) else None
+license_plate_model = YOLO(license_plate_model_path) if os.path.exists(license_plate_model_path) else None
 
-if os.path.exists(license_plate_model_path):
-    license_plate_model = YOLO(license_plate_model_path)
-else:
+if not truck_model:
+    st.error("⚠️ `yolov8n.pt` model not found in the `models/` directory!")
+if not license_plate_model:
     st.error("⚠️ `license_plate_detector.pt` model not found in the `models/` directory!")
 
 # ✅ Load Number Plate Classifier (Handle Missing File Safely)
@@ -62,6 +60,7 @@ else:
     st.error("⚠️ `model.pkl` not found in the `models/` directory!")
 
 # ✅ Load CSV files (Handle Missing Files)
+features_df, predictions_df = None, None
 try:
     features_df = pd.read_csv(FEATURES_CSV)
     predictions_df = pd.read_csv(PREDICTIONS_CSV)
@@ -83,8 +82,13 @@ transform = transforms.Compose([
 def extract_features(image):
     """Extract features from the license plate for classification."""
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    text = pytesseract.image_to_string(gray, config="--psm 8")
-    text_clarity = len(text.strip())
+    
+    try:
+        text = pytesseract.image_to_string(gray, config="--psm 8")
+        text_clarity = len(text.strip())
+    except pytesseract.pytesseract.TesseractNotFoundError:
+        st.error("⚠️ Tesseract-OCR is not installed! Install it and set the correct path.")
+        return [0, 0, 0]
 
     edges = cv2.Canny(gray, 50, 150)
     edge_sharpness = np.sum(edges) / (gray.shape[0] * gray.shape[1])
@@ -111,7 +115,7 @@ if uploaded_file:
     truck_type = "Old" if torch.argmax(output).item() == 0 else "New"
 
     # ✅ Truck Detection
-    results = truck_model(image_cv) if 'truck_model' in locals() else []
+    results = truck_model(image_cv) if truck_model else []
     number_plate_type = "Unknown"
 
     for result in results:
@@ -125,7 +129,7 @@ if uploaded_file:
                 truck_crop = image_cv[y1:y2, x1:x2]
 
                 # ✅ License Plate Detection
-                lp_results = license_plate_model(truck_crop) if 'license_plate_model' in locals() else []
+                lp_results = license_plate_model(truck_crop) if license_plate_model else []
                 if not lp_results:
                     st.warning("⚠️ No license plate detected! Please try another image.")
                     continue
@@ -141,12 +145,21 @@ if uploaded_file:
                         st.image(lp_crop, caption="Detected License Plate", use_container_width=True)
 
                         # ✅ Extract Features and Classify Number Plate
-                        if number_plate_model is not None:
+                        if number_plate_model:
                             features = np.array(extract_features(lp_crop)).reshape(1, -1)
-                            if np.isnan(features).any():
-                                st.error("⚠️ Error in extracted features: NaN values found.")
+                            
+                            # ✅ Correct feature names
+                            feature_columns = ["Rust_Level", "Text_Clarity", "Edge_Sharpness"]
+                            features_df = pd.DataFrame(features, columns=feature_columns)
+
+                            # ✅ Debugging Outputs
+                            st.write("📌 Extracted Features for Prediction:", features_df)
+                            st.write("📌 Model Expecting Features:", list(number_plate_model.feature_names_in_))
+
+                            if np.isnan(features_df.values).any():
+                                st.error("⚠️ Error: Extracted features contain NaN values!")
                             else:
-                                number_plate_prediction = number_plate_model.predict(features)[0]
+                                number_plate_prediction = number_plate_model.predict(features_df)[0]
                                 number_plate_type = "New" if number_plate_prediction == 1 else "Old"
                         else:
                             st.error("⚠️ Number plate classifier model is missing!")
