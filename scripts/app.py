@@ -25,6 +25,9 @@ from torchvision import models, transforms
 from torchvision.models import ResNet50_Weights
 from ultralytics import YOLO
 import pytesseract
+import shutil
+
+
 
 # ✅ Ensure Tesseract is installed
 if not shutil.which("tesseract"):
