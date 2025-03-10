@@ -1,33 +1,23 @@
 import os
-import asyncio
+import cv2
+import torch
+import joblib
 import shutil
+import asyncio
 import streamlit as st
 import nest_asyncio
 import numpy as np
-import torch
-import joblib
 import pandas as pd
 from PIL import Image
+from ultralytics import YOLO
 from torchvision import models, transforms
 from torchvision.models import ResNet50_Weights
 import pytesseract
 
-# ✅ Fix OpenCV Import Issue
-try:
-    import cv2
-except ImportError:
-    st.error("⚠️ OpenCV import failed! Ensure `opencv-python-headless` is installed.")
-
-# ✅ Fix YOLO Import Issue
-try:
-    from ultralytics import YOLO
-except ImportError:
-    st.error("⚠️ Ultralytics YOLO import failed! Try reinstalling with `pip install ultralytics`.")
-
-# ✅ Disable Streamlit File Watcher (Fixes Torch Issues)
+# ✅ Disable Streamlit File Watcher to Fix Async Issues
 os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
 
-# ✅ Fix asyncio issues in Python 3.12+
+# ✅ Fix asyncio error in Python 3.12+
 try:
     asyncio.get_running_loop()
 except RuntimeError:
@@ -43,50 +33,47 @@ else:
     st.error("⚠️ Tesseract-OCR not found! Ensure it's installed and added to system PATH.")
 
 # ✅ Define Paths
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(BASE_DIR, "models")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
+# Load Models & CSV
+features_path = os.path.join(DATA_DIR, "features.csv")
+predictions_path = os.path.join(DATA_DIR, "predictions.csv")
+model_path = os.path.join(MODEL_DIR, "model.pkl")
 truck_model_path = os.path.join(MODEL_DIR, "yolov8n.pt")
 license_plate_model_path = os.path.join(MODEL_DIR, "license_plate_detector.pt")
-number_plate_model_path = os.path.join(MODEL_DIR, "model.pkl")
 
-FEATURES_CSV = os.path.join(DATA_DIR, "features.csv")
-PREDICTIONS_CSV = os.path.join(DATA_DIR, "predictions.csv")
-
-# ✅ Load YOLO Models (Handle Errors)
-truck_model, license_plate_model = None, None
+# ✅ Load CSV Safely
 try:
-    if os.path.exists(truck_model_path):
-        truck_model = YOLO(truck_model_path)
-    if os.path.exists(license_plate_model_path):
-        license_plate_model = YOLO(license_plate_model_path)
+    features_df = pd.read_csv(features_path)
+    predictions_df = pd.read_csv(predictions_path)
+except FileNotFoundError:
+    st.warning("⚠️ Missing `features.csv` or `predictions.csv`!")
+
+# ✅ Load YOLO Models Safely
+try:
+    truck_model = YOLO(truck_model_path)
+    license_plate_model = YOLO(license_plate_model_path)
 except Exception as e:
+    truck_model, license_plate_model = None, None
     st.error(f"⚠️ Error loading YOLO models: {str(e)}")
 
-# ✅ Load Number Plate Classifier
+# ✅ Load ResNet50 Model Safely
+resnet_model = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
+resnet_model.fc = torch.nn.Linear(resnet_model.fc.in_features, 2)
+resnet_model.eval()
+
+# ✅ Load Number Plate Classifier Safely
 number_plate_model = None
-if os.path.exists(number_plate_model_path):
+if os.path.exists(model_path):
     try:
-        number_plate_model = joblib.load(number_plate_model_path)
+        number_plate_model = joblib.load(model_path)
         st.success("✅ Number plate model loaded successfully!")
     except Exception as e:
         st.error(f"⚠️ Error loading `model.pkl`: {str(e)}")
 else:
     st.error("⚠️ `model.pkl` not found!")
-
-# ✅ Load CSV Files
-try:
-    features_df = pd.read_csv(FEATURES_CSV)
-    predictions_df = pd.read_csv(PREDICTIONS_CSV)
-    st.success("✅ CSV Files Loaded Successfully!")
-except FileNotFoundError:
-    st.warning("⚠️ Missing `features.csv` or `predictions.csv`!")
-
-# ✅ Load ResNet50 Model
-resnet_model = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
-resnet_model.fc = torch.nn.Linear(resnet_model.fc.in_features, 2)
-resnet_model.eval()
 
 # ✅ Image Preprocessing
 transform = transforms.Compose([
@@ -105,8 +92,7 @@ def extract_features(image):
         return [0, 0, 0]
     edges = cv2.Canny(gray, 50, 150)
     edge_sharpness = np.sum(edges) / (gray.shape[0] * gray.shape[1])
-    rust_level = 0  # Placeholder for rust detection
-    return [rust_level, text_clarity, edge_sharpness]
+    return [0, text_clarity, edge_sharpness]
 
 # ✅ Streamlit UI
 st.title("🚛 OLD DUMPER WITH NEW NUMBER DETECTOR")
@@ -126,9 +112,9 @@ if uploaded_file:
     truck_type = "Old" if torch.argmax(output).item() == 0 else "New"
 
     # ✅ Truck Detection
-    number_plate_type = "Unknown"
     if truck_model:
         results = truck_model(image_cv)  
+        number_plate_type = "Unknown"
         for result in results:
             detected_classes = set([int(cls) for cls in result.boxes.cls.cpu().numpy()])
             for box, cls in zip(result.boxes.xyxy.cpu().numpy(), detected_classes):
@@ -140,26 +126,19 @@ if uploaded_file:
                         for lp_result in lp_results:
                             for lp_box in lp_result.boxes.xyxy.cpu().numpy():
                                 lp_x1, lp_y1, lp_x2, lp_y2 = map(int, lp_box[:4])
-                                lp_x1 += x1
-                                lp_y1 += y1
-                                lp_x2 += x1
-                                lp_y2 += y1
                                 lp_crop = image_cv[lp_y1:lp_y2, lp_x1:lp_x2]
                                 st.image(lp_crop, caption="Detected License Plate")
                                 if number_plate_model:
                                     features = np.array(extract_features(lp_crop)).reshape(1, -1)
-                                    feature_columns = ["Rust_Level", "Text_Clarity", "Edge_Sharpness"]
-                                    features_df = pd.DataFrame(features, columns=feature_columns)
-                                    if not np.isnan(features_df.values).any():
-                                        number_plate_prediction = number_plate_model.predict(features_df)[0]
-                                        number_plate_type = "New" if number_plate_prediction == 1 else "Old"
-                                    else:
-                                        st.error("⚠️ Extracted features contain NaN values!")
-
+                                    number_plate_prediction = number_plate_model.predict(features)[0]
+                                    number_plate_type = "New" if number_plate_prediction == 1 else "Old"
+    
     # ✅ Display Results
     st.subheader("Results:")
     st.write(f"**Truck Type:** {truck_type}")
     st.write(f"**Number Plate Type:** {number_plate_type}")
+    
+    # ✅ Fraud Detection
     if truck_type == "Old" and number_plate_type == "New":
         st.error("🚨 OLD DUMPER WITH NEW NUMBER DETECTED 🚨")
     else:
