@@ -8,3 +8,4 @@ pandas
 pytesseract
 joblib
 nest-asyncio
+scikit-learn
