@@ -1,14 +1,8 @@
-import cv2  # Ensure OpenCV is imported properly
-
-import os
-
-# ✅ Debugging: Print OpenCV version
+import cv2
 print("✅ OpenCV Version:", cv2.__version__)
 
-# ✅ Debugging: Print OpenCV Build Information (to verify correct installation)
-print(cv2.getBuildInformation())
 
-
+import os
 import numpy as np
 import torch
 import joblib
