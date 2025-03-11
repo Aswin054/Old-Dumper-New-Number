@@ -1,5 +1,7 @@
-import os
 import cv2
+print("OpenCV Version:", cv2.__version__)
+
+import os
 import numpy as np
 import torch
 import joblib
@@ -12,8 +14,6 @@ import pytesseract
 import asyncio
 import nest_asyncio
 
-# ✅ **Print OpenCV version to ensure it's loaded correctly**
-print("OpenCV Version:", cv2.__version__)
 
 # ✅ **Disable Streamlit File Watcher (Fix Async Issues)**
 os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
