@@ -29,20 +29,6 @@ from torchvision.models import ResNet50_Weights
 from ultralytics import YOLO
 import pytesseract
 
-import subprocess
-
-try:
-    # Check where Tesseract is installed
-    result = subprocess.run(["which", "tesseract"], capture_output=True, text=True)
-    print("🔍 Tesseract Path:", result.stdout.strip())
-
-    # Check Tesseract version
-    version_result = subprocess.run(["tesseract", "--version"], capture_output=True, text=True)
-    print("🛠 Tesseract Version:", version_result.stdout.strip())
-
-except Exception as e:
-    print("⚠️ Error checking Tesseract:", str(e))
-
 # ✅ Set the correct Tesseract path
 TESSERACT_PATH = r"C:\Users\Lenova\Desktop\old dumper NN\Tesseract-OCR\tesseract.exe"
 
@@ -54,8 +40,10 @@ try:
     tesseract_version = pytesseract.get_tesseract_version()
     print(f"Tesseract Version: {tesseract_version}")
 except Exception as e:
+    print(f"Error: {e}")
+    print(f"Tesseract Path: {TESSERACT_PATH}")
+    print(f"Is Path Valid: {os.path.exists(TESSERACT_PATH)}")
     raise RuntimeError(f"⚠️ Error: Tesseract is installed but not accessible! {str(e)}")
-
 
 
 # ✅ Fix ResNet50 model loading (removes warning)
