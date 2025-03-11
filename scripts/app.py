@@ -29,9 +29,11 @@ import shutil
 
 
 
-# ✅ Ensure Tesseract is installed
-if not shutil.which("tesseract"):
-    st.error("⚠️ Tesseract-OCR is not installed. Please install it and restart.")
+# ✅ Set Tesseract path dynamically
+TESSERACT_PATH = os.path.join(os.path.dirname(__file__), "..", "Tesseract-OCR", "tesseract.exe")
+
+# ✅ Assign the path
+pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
 # ✅ Fix ResNet50 model loading (removes warning)
 resnet_model = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
