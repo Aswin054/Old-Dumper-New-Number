@@ -1,5 +1,6 @@
-import cv2
-print("OpenCV Version:", cv2.__version__)
+import cv2 as cv  # Ensure OpenCV is imported properly
+print("✅ OpenCV Version:", cv.__version__)  # Debugging step
+
 
 import os
 import numpy as np
