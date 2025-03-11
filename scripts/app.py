@@ -55,9 +55,17 @@ else:
         print("Please install Tesseract-OCR and add it to your system PATH.")
 
 # ✅ **Define Paths**
+# ✅ Get the script directory (where the current script is running)
 SCRIPT_DIR = os.path.dirname(__file__)
+
+# ✅ Set the models folder inside the scripts directory
 MODEL_DIR = os.path.join(SCRIPT_DIR, "models")
-DATA_DIR = os.path.join(SCRIPT_DIR, "data")
+
+# ✅ Get the project root (one level up from scripts)
+PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
+
+# ✅ Set the data folder correctly in the project root
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 
 truck_model_path = os.path.join(MODEL_DIR, "yolov8n.pt")
 license_plate_model_path = os.path.join(MODEL_DIR, "license_plate_detector.pt")
