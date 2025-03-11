@@ -30,7 +30,6 @@ from ultralytics import YOLO
 import pytesseract
 
 
-
 # ✅ Set the correct Tesseract path
 TESSERACT_PATH = r"C:\Users\Lenova\Desktop\old dumper NN\Tesseract-OCR\tesseract.exe"
 
@@ -44,7 +43,19 @@ try:
 except Exception as e:
     raise RuntimeError(f"⚠️ Error: Tesseract is installed but not accessible! {str(e)}")
 
+import subprocess
 
+try:
+    # Check where Tesseract is installed
+    result = subprocess.run(["which", "tesseract"], capture_output=True, text=True)
+    print("🔍 Tesseract Path:", result.stdout.strip())
+
+    # Check Tesseract version
+    version_result = subprocess.run(["tesseract", "--version"], capture_output=True, text=True)
+    print("🛠 Tesseract Version:", version_result.stdout.strip())
+
+except Exception as e:
+    print("⚠️ Error checking Tesseract:", str(e))
 
 
 # ✅ Fix ResNet50 model loading (removes warning)
