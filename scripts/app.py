@@ -27,17 +27,16 @@ except RuntimeError:
 
 nest_asyncio.apply()
 
-# ✅ **Set Tesseract Path Dynamically**
-TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"  # Change this if needed
-if os.name != "nt":  # If on Linux (Streamlit Cloud)
-    TESSERACT_PATH = "/usr/bin/tesseract"
+import shutil
 
-# ✅ **Check Tesseract Installation**
-if not os.path.exists(TESSERACT_PATH):
-    st.error(f"⚠️ Tesseract not found at: {TESSERACT_PATH}. Install it & restart.")
+# Automatically find Tesseract installation path
+tesseract_path = shutil.which("tesseract")
+
+if tesseract_path:
+    pytesseract.pytesseract.tesseract_cmd = tesseract_path
+    print(f"Tesseract found at: {tesseract_path}")
 else:
-    pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
-    st.success(f"✅ Using Tesseract at: {TESSERACT_PATH}")
+    raise FileNotFoundError("Tesseract-OCR not found. Please install it and add to PATH.")
 
 # ✅ **Define Paths**
 SCRIPT_DIR = os.path.dirname(__file__)
