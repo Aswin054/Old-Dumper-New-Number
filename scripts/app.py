@@ -31,6 +31,7 @@ import shutil
 
 
 # Automatically find Tesseract installation path
+# ✅ Automatically find Tesseract installation path
 tesseract_path = shutil.which("tesseract")
 
 if tesseract_path:
@@ -38,22 +39,28 @@ if tesseract_path:
     print(f"Tesseract found at: {tesseract_path}")
 
 else:
-    # Check if 'packages.txt' exists and contains 'tesseract'
+    # ✅ Check if 'packages.txt' exists and contains 'tesseract'
     package_file = "packages.txt"
+    
     if os.path.exists(package_file):
         with open(package_file, "r") as f:
-            installed_packages = f.read()
+            installed_packages = f.read().lower()
 
-        if "tesseract" in installed_packages.lower():
-            print("Tesseract is listed in packages.txt but not found in PATH.")
-            print("Try adding it to PATH or reinstalling.")
+        if "tesseract-ocr" in installed_packages:
+            print("⚠️ Tesseract is listed in packages.txt but not found in PATH.")
+            print("ℹ️ Try adding it to PATH or reinstalling.")
         else:
-            print("Tesseract is missing. Please install it.")
+            print("⚠️ Tesseract is missing. Please install it and add to PATH.")
 
     else:
-        print("packages.txt not found. Cannot verify Tesseract installation.")
-        print("Please install Tesseract-OCR and add it to your system PATH.")
+        print("⚠️ packages.txt not found. Cannot verify Tesseract installation.")
+        print("ℹ️ Please install Tesseract-OCR and add it to your system PATH.")
 
+    # ✅ Hide the warning in Streamlit UI but log it for debugging
+    with open("tesseract_error.log", "w") as f:
+        f.write("⚠️ Warning: Tesseract not found or not in PATH. See README for installation.\n")
+
+    print("⚠️ Warning: Tesseract not found or not in PATH! (This will not be shown on Streamlit page)")
 # ✅ **Define Paths**
 # ✅ Get the script directory (where the current script is running)
 SCRIPT_DIR = os.path.dirname(__file__)
