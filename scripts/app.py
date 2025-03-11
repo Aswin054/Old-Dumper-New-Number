@@ -16,7 +16,7 @@ except RuntimeError:
 nest_asyncio.apply()
 
 # ✅ Import Libraries
-import cv2
+import cv2 as cv
 import numpy as np
 import torch
 import joblib
@@ -25,7 +25,7 @@ from torchvision import models, transforms
 from torchvision.models import ResNet50_Weights
 from ultralytics import YOLO
 import pytesseract
-
+print(cv.__version__)
 
 # ✅ Correcting the Tesseract path
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))  # Get project root
