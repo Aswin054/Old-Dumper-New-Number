@@ -31,7 +31,7 @@ import pytesseract
 
 
 # ✅ Automatically detect Tesseract path
-TESSERACT_FOLDER = r"C:\Program Files\Tesseract-OCR"  # Change this only if your path is different
+TESSERACT_FOLDER = r"C:\Program Files\Tesseract-OCR\tesseract.exe"  # Change this only if your path is different
 TESSERACT_PATH = os.path.join(TESSERACT_FOLDER, "tesseract.exe")
 
 # ✅ Check if Tesseract exists
