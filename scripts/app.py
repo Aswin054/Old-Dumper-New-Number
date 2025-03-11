@@ -30,16 +30,15 @@ from ultralytics import YOLO
 import pytesseract
 
 
-# ✅ Correcting the Tesseract path
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))  # Get project root
-TESSERACT_PATH = os.path.join(BASE_DIR, "Tesseract-OCR", "tesseract.exe")
-
-# ✅ Assign the correct path
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
+# ✅ Set the correct Tesseract path for deployment
+TESSERACT_PATH = "/mount/src/old-dumper-new-number/Tesseract-OCR/tesseract.exe"
 
 # ✅ Validate if Tesseract exists
 if not os.path.exists(TESSERACT_PATH):
     raise FileNotFoundError(f"⚠️ Tesseract not found at {TESSERACT_PATH}. Check if it's installed correctly.")
+
+# ✅ Assign the correct path
+pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
 
 
