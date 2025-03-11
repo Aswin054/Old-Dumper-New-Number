@@ -1,16 +1,24 @@
-import cv2
-print("OpenCV Version:", cv2.__version__)
-
 import os
-
-# ✅ Disable Streamlit File Watcher to Fix Torch Async Issues
-os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
-
-import asyncio
+import cv2
+import numpy as np
+import torch
+import joblib
 import streamlit as st
+import pandas as pd
+from PIL import Image
+from torchvision import models, transforms
+from ultralytics import YOLO
+import pytesseract
+import asyncio
 import nest_asyncio
 
-# ✅ Fix asyncio error in Python 3.12+
+# ✅ **Print OpenCV version to ensure it's loaded correctly**
+print("OpenCV Version:", cv2.__version__)
+
+# ✅ **Disable Streamlit File Watcher (Fix Async Issues)**
+os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
+
+# ✅ **Fix asyncio error in Python 3.12+**
 try:
     asyncio.get_running_loop()
 except RuntimeError:
@@ -18,58 +26,40 @@ except RuntimeError:
 
 nest_asyncio.apply()
 
-# ✅ Import Libraries
+# ✅ **Set Tesseract Path Dynamically**
+TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"  # Change this if needed
+if os.name != "nt":  # If on Linux (Streamlit Cloud)
+    TESSERACT_PATH = "/usr/bin/tesseract"
 
-import numpy as np
-import torch
-import joblib
-from PIL import Image
-from torchvision import models, transforms
-from torchvision.models import ResNet50_Weights
-from ultralytics import YOLO
-import pytesseract
-
-
-# ✅ Automatically detect Tesseract path
-TESSERACT_FOLDER = r"C:\Program Files\Tesseract-OCR\tesseract.exe"  # Change this only if your path is different
-TESSERACT_PATH = os.path.join(TESSERACT_FOLDER, "tesseract.exe")
-
-# ✅ Check if Tesseract exists
+# ✅ **Check Tesseract Installation**
 if not os.path.exists(TESSERACT_PATH):
-    raise FileNotFoundError(f"⚠️ Tesseract not found at {TESSERACT_PATH}. Check if it's installed correctly.")
+    st.error(f"⚠️ Tesseract not found at: {TESSERACT_PATH}. Install it & restart.")
+else:
+    pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
+    st.success(f"✅ Using Tesseract at: {TESSERACT_PATH}")
 
-# ✅ Assign the path to pytesseract
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
-print(f"✅ Using Tesseract at: {TESSERACT_PATH}")
-
-
-# ✅ Fix ResNet50 model loading (removes warning)
-resnet_model = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
-resnet_model.fc = torch.nn.Linear(resnet_model.fc.in_features, 2)
-resnet_model.eval()
-
-# ✅ Define Model Paths (Fix Deployment Issue)
-MODEL_DIR = os.path.join(os.path.dirname(__file__), "models")
+# ✅ **Define Paths**
+SCRIPT_DIR = os.path.dirname(__file__)
+MODEL_DIR = os.path.join(SCRIPT_DIR, "models")
+DATA_DIR = os.path.join(SCRIPT_DIR, "data")
 
 truck_model_path = os.path.join(MODEL_DIR, "yolov8n.pt")
 license_plate_model_path = os.path.join(MODEL_DIR, "license_plate_detector.pt")
 number_plate_model_path = os.path.join(MODEL_DIR, "model.pkl")
 
-# ✅ Load YOLO Models Safely
-truck_model = None
-license_plate_model = None
+FEATURES_CSV = os.path.join(DATA_DIR, "features.csv")
+PREDICTIONS_CSV = os.path.join(DATA_DIR, "predictions.csv")
 
-if os.path.exists(truck_model_path):
-    truck_model = YOLO(truck_model_path)
-else:
+# ✅ **Load YOLO Models Safely**
+truck_model = YOLO(truck_model_path) if os.path.exists(truck_model_path) else None
+license_plate_model = YOLO(license_plate_model_path) if os.path.exists(license_plate_model_path) else None
+
+if not truck_model:
     st.error(f"⚠️ Truck detection model not found: {truck_model_path}")
-
-if os.path.exists(license_plate_model_path):
-    license_plate_model = YOLO(license_plate_model_path)
-else:
+if not license_plate_model:
     st.error(f"⚠️ License plate detection model not found: {license_plate_model_path}")
 
-# ✅ Load Number Plate Classifier (Handle Missing File Safely)
+# ✅ **Load Number Plate Classifier**
 number_plate_model = None
 if os.path.exists(number_plate_model_path):
     try:
@@ -77,14 +67,19 @@ if os.path.exists(number_plate_model_path):
     except Exception as e:
         st.error(f"⚠️ Error loading model.pkl: {str(e)}")
 
-# ✅ Image Preprocessing for ResNet50
+# ✅ **Load ResNet50**
+resnet_model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
+resnet_model.fc = torch.nn.Linear(resnet_model.fc.in_features, 2)
+resnet_model.eval()
+
+# ✅ **Image Preprocessing**
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor()
 ])
 
 def extract_features(image):
-    """Extract features from the license plate for classification."""
+    """Extracts features from license plate."""
     try:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         text = pytesseract.image_to_string(gray, config="--psm 8")
@@ -96,11 +91,8 @@ def extract_features(image):
     except Exception as e:
         st.error(f"⚠️ Error extracting features: {e}")
         return [0, 0, 0]
-    
-  
 
-
-# ✅ Streamlit UI
+# ✅ **Streamlit UI**
 st.title("🚛 OLD DUMPER WITH NEW NUMBER DETECTOR")
 st.write("Upload an image of a truck to detect its type and check for fraud.")
 
@@ -126,7 +118,7 @@ if uploaded_file:
 
         for result in results:
             detected_classes = set([int(cls) for cls in result.boxes.cls])
-            st.write(f"Detected Classes in Image: {detected_classes}")  # Debugging output
+            st.write(f"Detected Classes in Image: {detected_classes}")
 
             for box, cls in zip(result.boxes.xyxy, result.boxes.cls):
                 TRUCK_CLASS_ID = 7
@@ -149,13 +141,17 @@ if uploaded_file:
                                     lp_crop = image_cv[lp_y1:lp_y2, lp_x1:lp_x2]
                                     st.image(lp_crop, caption="Detected License Plate", use_container_width=True)
 
-                                    # ✅ Extract Features and Classify Number Plate
+                                    # ✅ Extract Features & Classify Number Plate
                                     if number_plate_model is not None:
                                         features = np.array(extract_features(lp_crop)).reshape(1, -1)
+                                        feature_columns = ["Rust_Level", "Text_Clarity", "Edge_Sharpness"]  # Match training names
+
+                                        features_df = pd.DataFrame(features, columns=feature_columns)
+
                                         if np.isnan(features).any():
                                             st.error("Error in extracted features: NaN values found.")
                                         else:
-                                            number_plate_prediction = number_plate_model.predict(features)[0]
+                                            number_plate_prediction = number_plate_model.predict(features_df)[0]
                                             number_plate_type = "New" if number_plate_prediction == 1 else "Old"
                                     else:
                                         st.error("⚠️ Number plate classifier model is missing!")
