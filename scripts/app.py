@@ -28,17 +28,18 @@ from torchvision import models, transforms
 from torchvision.models import ResNet50_Weights
 from ultralytics import YOLO
 import pytesseract
+import shutil
 
+# ✅ Dynamically locate Tesseract path
+TESSERACT_PATH = shutil.which("tesseract")
 
-# ✅ Set the correct Tesseract path for deployment
-TESSERACT_PATH = "/mount/src/old-dumper-new-number/Tesseract-OCR/tesseract.exe"
+if TESSERACT_PATH is None:
+    raise FileNotFoundError("⚠️ Tesseract-OCR not found! Ensure it is installed and added to the system PATH.")
 
-# ✅ Validate if Tesseract exists
-if not os.path.exists(TESSERACT_PATH):
-    raise FileNotFoundError(f"⚠️ Tesseract not found at {TESSERACT_PATH}. Check if it's installed correctly.")
-
-# ✅ Assign the correct path
+# ✅ Assign the detected path
 pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
+
+print(f"✅ Using Tesseract at: {TESSERACT_PATH}")  # Debugging
 
 
 
