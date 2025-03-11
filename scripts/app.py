@@ -25,15 +25,20 @@ from torchvision import models, transforms
 from torchvision.models import ResNet50_Weights
 from ultralytics import YOLO
 import pytesseract
-import shutil
 
 
+# ✅ Correcting the Tesseract path
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))  # Get project root
+TESSERACT_PATH = os.path.join(BASE_DIR, "Tesseract-OCR", "tesseract.exe")
 
-# ✅ Set Tesseract path dynamically
-TESSERACT_PATH = os.path.join(os.path.dirname(__file__), "..", "Tesseract-OCR", "tesseract.exe")
-
-# ✅ Assign the path
+# ✅ Assign the correct path
 pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
+
+# ✅ Validate if Tesseract exists
+if not os.path.exists(TESSERACT_PATH):
+    raise FileNotFoundError(f"⚠️ Tesseract not found at {TESSERACT_PATH}. Check if it's installed correctly.")
+
+
 
 # ✅ Fix ResNet50 model loading (removes warning)
 resnet_model = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
@@ -88,6 +93,9 @@ def extract_features(image):
     except Exception as e:
         st.error(f"⚠️ Error extracting features: {e}")
         return [0, 0, 0]
+    
+  
+
 
 # ✅ Streamlit UI
 st.title("🚛 OLD DUMPER WITH NEW NUMBER DETECTOR")
