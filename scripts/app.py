@@ -32,7 +32,7 @@ import pytesseract
 
 
 # ✅ Set the correct Tesseract path
-TESSERACT_DIR = r"C:\Program Files\Tesseract-OCR"
+TESSERACT_DIR = r"C:\Users\Lenova\Desktop\old dumper NN\Tesseract-OCR"
 TESSERACT_PATH = os.path.join(TESSERACT_DIR, "tesseract.exe")
 
 # ✅ Check if Tesseract exists
