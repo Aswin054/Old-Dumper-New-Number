@@ -31,17 +31,19 @@ import pytesseract
 
 
 
-# ✅ Correct the path to the Tesseract executable
+# ✅ Set the correct Tesseract path
 TESSERACT_PATH = r"C:\Users\Lenova\Desktop\old dumper NN\Tesseract-OCR\tesseract.exe"
 
-# ✅ Validate if Tesseract.exe exists
-if not os.path.exists(TESSERACT_PATH):
-    raise FileNotFoundError(f"⚠️ Tesseract not found at {TESSERACT_PATH}. Check if it's installed correctly.")
-
-# ✅ Set the Tesseract command path
+# ✅ Assign the path to pytesseract
 pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
-print(f"✅ Using Tesseract at: {TESSERACT_PATH}")  # Debugging output
+# ✅ Verify if Tesseract is accessible
+try:
+    tesseract_version = pytesseract.get_tesseract_version()
+    print(f"Tesseract Version: {tesseract_version}")
+except Exception as e:
+    raise RuntimeError(f"⚠️ Error: Tesseract is installed but not accessible! {str(e)}")
+
 
 
 
