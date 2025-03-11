@@ -29,14 +29,30 @@ nest_asyncio.apply()
 
 import shutil
 
+
 # Automatically find Tesseract installation path
 tesseract_path = shutil.which("tesseract")
 
 if tesseract_path:
     pytesseract.pytesseract.tesseract_cmd = tesseract_path
     print(f"Tesseract found at: {tesseract_path}")
+
 else:
-    raise FileNotFoundError("Tesseract-OCR not found. Please install it and add to PATH.")
+    # Check if 'packages.txt' exists and contains 'tesseract'
+    package_file = "packages.txt"
+    if os.path.exists(package_file):
+        with open(package_file, "r") as f:
+            installed_packages = f.read()
+
+        if "tesseract" in installed_packages.lower():
+            print("Tesseract is listed in packages.txt but not found in PATH.")
+            print("Try adding it to PATH or reinstalling.")
+        else:
+            print("Tesseract is missing. Please install it.")
+
+    else:
+        print("packages.txt not found. Cannot verify Tesseract installation.")
+        print("Please install Tesseract-OCR and add it to your system PATH.")
 
 # ✅ **Define Paths**
 SCRIPT_DIR = os.path.dirname(__file__)
