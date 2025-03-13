@@ -7,17 +7,12 @@ import joblib
 from PIL import Image
 from torchvision import models, transforms
 from ultralytics import YOLO
-import pytesseract
+import easyocr  # ✅ Replacing Tesseract with EasyOCR
 
-# ✅ Automatically detect Tesseract path (same as app.py)
-TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-if not os.path.exists(TESSERACT_PATH):
-    raise FileNotFoundError(f"⚠️ Tesseract not found at {TESSERACT_PATH}. Check if it's installed correctly.")
+# ✅ Initialize EasyOCR Reader
+reader = easyocr.Reader(["en"])  # ✅ Load OCR for English
 
-# ✅ Assign to pytesseract
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
-
-# ✅ Define paths for models & data (same as app.py)
+# ✅ Define paths for models & data
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))  # Project root
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "models")
 DATA_DIR = os.path.join(BASE_DIR, "data")  # CSV files stored here
@@ -36,7 +31,7 @@ try:
 except FileNotFoundError:
     raise FileNotFoundError("⚠️ Missing CSV files: `features.csv` or `predictions.csv` not found!")
 
-# ✅ Load YOLO models (same as app.py)
+# ✅ Load YOLO models
 truck_model = YOLO(truck_model_path) if os.path.exists(truck_model_path) else None
 license_plate_model = YOLO(license_plate_model_path) if os.path.exists(license_plate_model_path) else None
 
@@ -64,22 +59,27 @@ transform = transforms.Compose([
     transforms.ToTensor()
 ])
 
-# ✅ Feature extraction (same as app.py)
+# ✅ Feature extraction using EasyOCR
 def extract_features(image):
-    """Extract features from license plate."""
+    """Extracts features from license plate using EasyOCR."""
     try:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        text = pytesseract.image_to_string(gray, config="--psm 8")
+
+        # ✅ Use EasyOCR instead of Tesseract
+        results = reader.readtext(gray)
+        text = " ".join([res[1] for res in results])  # Extract detected text
         text_clarity = len(text.strip())
+
         edges = cv2.Canny(gray, 50, 150)
         edge_sharpness = np.sum(edges) / (gray.shape[0] * gray.shape[1])
+
         rust_level = 0  # No rust detection in grayscale images
         return [rust_level, text_clarity, edge_sharpness]
     except Exception as e:
         print(f"⚠️ Error extracting features: {e}")
         return [0, 0, 0]
 
-# ✅ Load Test Image (Replace with actual path)
+# ✅ Load Test Image
 image_path = os.path.join(BASE_DIR, "dataset", "testimg.jpeg")
 if not os.path.exists(image_path):
     raise FileNotFoundError(f"⚠️ Test image not found: {image_path}")
@@ -123,8 +123,6 @@ for result in results:
                         feature_columns = ["Rust_Level", "Text_Clarity", "Edge_Sharpness"]  # Match training names
                                         
                         features_df = pd.DataFrame(features, columns=feature_columns)
-
-                        
 
                         if np.isnan(features).any():
                             print("⚠️ Error: NaN values found in extracted features.")

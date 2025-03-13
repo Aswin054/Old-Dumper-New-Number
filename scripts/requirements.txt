@@ -2,10 +2,11 @@ streamlit
 ultralytics
 torch
 torchvision
+torchaudio
 opencv-python-headless
 numpy
 pillow
-pytesseract
+easyocr
 joblib
 pandas
 nest_asyncio

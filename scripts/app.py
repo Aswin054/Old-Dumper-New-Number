@@ -1,7 +1,6 @@
 import cv2
 print("✅ OpenCV Version:", cv2.__version__)
 
-
 import os
 import numpy as np
 import torch
@@ -11,10 +10,9 @@ import pandas as pd
 from PIL import Image
 from torchvision import models, transforms
 from ultralytics import YOLO
-import pytesseract
+import easyocr  # ✅ Import EasyOCR
 import asyncio
 import nest_asyncio
-
 
 # ✅ **Disable Streamlit File Watcher (Fix Async Issues)**
 os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
@@ -27,42 +25,6 @@ except RuntimeError:
 
 nest_asyncio.apply()
 
-import shutil
-
-
-# Automatically find Tesseract installation path
-# ✅ Automatically find Tesseract installation path
-tesseract_path = shutil.which("tesseract")
-
-if tesseract_path:
-    pytesseract.pytesseract.tesseract_cmd = tesseract_path
-    print(f"Tesseract found at: {tesseract_path}")
-
-else:
-    # ✅ Check if 'packages.txt' exists and contains 'tesseract'
-    package_file = "packages.txt"
-    
-    if os.path.exists(package_file):
-        with open(package_file, "r") as f:
-            installed_packages = f.read().lower()
-
-        if "tesseract-ocr" in installed_packages:
-            print("⚠️ Tesseract is listed in packages.txt but not found in PATH.")
-            print("ℹ️ Try adding it to PATH or reinstalling.")
-        else:
-            print("⚠️ Tesseract is missing. Please install it and add to PATH.")
-
-    else:
-        print("⚠️ packages.txt not found. Cannot verify Tesseract installation.")
-        print("ℹ️ Please install Tesseract-OCR and add it to your system PATH.")
-
-    # ✅ Hide the warning in Streamlit UI but log it for debugging
-    with open("tesseract_error.log", "w") as f:
-        f.write("⚠️ Warning: Tesseract not found or not in PATH. See README for installation.\n")
-
-    print("⚠️ Warning: Tesseract not found or not in PATH! (This will not be shown on Streamlit page)")
-# ✅ **Define Paths**
-# ✅ Get the script directory (where the current script is running)
 SCRIPT_DIR = os.path.dirname(__file__)
 
 # ✅ Set the models folder inside the scripts directory
@@ -103,6 +65,9 @@ resnet_model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
 resnet_model.fc = torch.nn.Linear(resnet_model.fc.in_features, 2)
 resnet_model.eval()
 
+# ✅ **Initialize EasyOCR**
+reader = easyocr.Reader(["en"])  # ✅ Load English OCR model
+
 # ✅ **Image Preprocessing**
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -110,13 +75,18 @@ transform = transforms.Compose([
 ])
 
 def extract_features(image):
-    """Extracts features from license plate."""
+    """Extracts features from license plate using EasyOCR."""
     try:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        text = pytesseract.image_to_string(gray, config="--psm 8")
+
+        # ✅ Use EasyOCR instead of Tesseract
+        results = reader.readtext(gray)
+        text = " ".join([res[1] for res in results])  # Extract detected text
         text_clarity = len(text.strip())
+
         edges = cv2.Canny(gray, 50, 150)
         edge_sharpness = np.sum(edges) / (gray.shape[0] * gray.shape[1])
+
         rust_level = 0  # No rust detection in grayscale images
         return [rust_level, text_clarity, edge_sharpness]
     except Exception as e:
